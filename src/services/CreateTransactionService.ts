@@ -10,7 +10,7 @@ interface Request {
   title: string;
   type: 'income' | 'outcome';
   value: number;
-  category_id: string;
+  category: string;
 }
 
 class CreateTransactionService {
@@ -18,21 +18,32 @@ class CreateTransactionService {
     title,
     type,
     value,
-    category_id,
+    category,
   }: Request): Promise<Transaction> {
+    const categoryRepository = getRepository(Category);
     const transactionRepository = getCustomRepository(TransactionsRepository);
 
-    const transactionBalance = await transactionRepository.getBalance();
+    const { total } = await transactionRepository.getBalance();
 
-    if (type === 'outcome' && transactionBalance.total < value) {
-      throw new AppError('You have more outcome than income');
+    if (type === 'outcome' && total < value) {
+      throw new AppError('You do not have enough balance');
+    }
+
+    let transactionCategory = await categoryRepository.findOne({
+      where: { title: category },
+    });
+
+    if (!transactionCategory) {
+      transactionCategory = categoryRepository.create({ title: category });
+
+      await categoryRepository.save(transactionCategory);
     }
 
     const transaction = transactionRepository.create({
       title,
       value,
       type,
-      category_id,
+      category: transactionCategory,
     });
 
     await transactionRepository.save(transaction);
